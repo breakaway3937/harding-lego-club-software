@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 497 1255" preserveAspectRatio="xMinYMin meet">
+  <!-- Top-left corner of the 2026 Game Manual cover: three wedges fanning from one point on the left edge -->
+  <polygon fill="#FF0000" points="0,0 308,0 0,1255"/>
+  <polygon fill="#C0C0C0" points="307,0 403,0 0,1255"/>
+  <polygon fill="#00B0F0" points="402,0 497,0 0,1255"/>
+</svg>
