@@ -103,10 +103,14 @@ h1, h2, h3 { font-family: var(--display); font-weight: 700; line-height: 1.1; ma
 .sugg b { font-family: var(--display); margin-right: 8px; }
 
 /* tabs */
-.tabs { position: sticky; top: 68px; z-index: 10; display: flex; gap: 6px; overflow-x: auto; padding: 12px 0 8px; margin-top: 8px; background: var(--canvas); scrollbar-width: none; }
+.tabs { position: sticky; top: 68px; z-index: 10; display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 0 8px; margin-top: 8px; background: var(--canvas); scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
 .tabs button { flex: none; border: 2px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 16px; font-family: var(--display); font-weight: 600; font-size: 16px; cursor: pointer; color: var(--ink-soft); }
 .tabs button.on { background: var(--cyan); border-color: var(--cyan); color: #fff; }
+.tabs button.live { background: var(--club-red); border-color: var(--club-red); color: #fff; display: inline-flex; align-items: center; gap: 8px; }
+.tabs button.live::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: #fff; animation: blink 1.4s infinite; }
+.tabs button.live.on { box-shadow: 0 0 0 3px #FFC9CC; }
+.tabs button.replay.on { background: var(--club-red); border-color: var(--club-red); }
 
 /* matches */
 .mlist { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
@@ -184,10 +188,19 @@ table.rk .rs { font-family: var(--display); font-size: 19px; }
 .teamcard .tc-h { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; }
 .teamcard .num { font-family: var(--display); font-size: 46px; line-height: 1; }
 .teamcard h2 { font-size: 26px; }
-.teamcard .stats { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.teamcard .stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 10px; margin-top: 12px; }
 .teamcard .stats div { background: rgba(255,255,255,0.18); border-radius: 12px; padding: 8px 14px; text-align: center; }
 .teamcard .stats b { display: block; font-family: var(--display); font-size: 24px; }
 .teamcard .stats small { font-weight: 800; }
+.back { margin-top: 12px; }
+.teamcard .tc-aw { margin: 12px 0 0; font-weight: 800; }
+.m .res { display: inline-block !important; margin-top: 4px; border-radius: 999px; padding: 1px 9px; font-size: 12px; font-weight: 800; color: #fff; }
+.m .res.w { background: #11803A; } .m .res.l { background: #8A96A3; } .m .res.t { background: #B86E00; }
+h3.sub { font-size: 20px; margin: 22px 0 4px; }
+.teams button .tl-rec { display: block; margin-top: 2px; font-weight: 800; color: var(--ink); font-size: 14px; }
+.teams button:hover { box-shadow: 0 3px 0 var(--cyan); }
+table.rk tr.go { cursor: pointer; }
+table.rk tr.go:hover td { background: var(--cyan-tint); }
 .teamcard .close { background: rgba(255,255,255,0.2); color: #fff; border: 0; border-radius: 999px; padding: 8px 14px; font: inherit; font-weight: 800; cursor: pointer; }
 
 .empty { background: #fff; border-radius: var(--r); padding: 22px; text-align: center; color: var(--ink-soft); font-weight: 700; margin-top: 8px; }

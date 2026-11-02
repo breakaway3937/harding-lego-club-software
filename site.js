@@ -72,13 +72,14 @@
 
   /* ================================================================ event page */
   const params = new URLSearchParams(location.search);
-  let ev = null, tab = params.get("tab") || null, myTeam = params.get("team") || (() => { try { return localStorage.getItem("lc_team") || ""; } catch (e) { return ""; } })();
+  let ev = null, tab = params.get("tab") || null, team = params.get("team") || "", focus = "", teamQuery = "";
   const teamOf = (n) => (ev.teams || []).find((t) => t.number === n) || {};
   const tname = (n) => teamOf(n).name || "";
 
+  // "focus" is the team whose page is open: its number is highlighted in its match cards
   function matchCard(m) {
-    const mine = myTeam && [m.red1, m.red2, m.blue1, m.blue2].includes(myTeam);
-    const tm = (n) => n ? `<span class="${n === myTeam ? "me" : ""}">${esc(n)}</span>` : "";
+    const mine = focus && [m.red1, m.red2, m.blue1, m.blue2].includes(focus);
+    const tm = (n) => n ? `<span class="${n === focus ? "me" : ""}">${esc(n)}</span>` : "";
     const al = (a) => `<div class="al ${a === "red" ? "r" : "b"}">${tm(m[a + "1"])}${m[a + "2"] ? " & " + tm(m[a + "2"]) : ""}${m.kind === "elim" && m[a + "_alliance"] ? ` <small>Alliance ${m[a + "_alliance"]}</small>` : `<small>${esc([tname(m[a + "1"]), tname(m[a + "2"])].filter(Boolean).join(" & "))}</small>`}</div>`;
     let sc;
     if (m.status === "final") sc = `<div class="sc"><span class="r ${m.winner === "red" ? "w" : ""}">${m.red_score}</span><span class="dash">–</span><span class="b ${m.winner === "blue" ? "w" : ""}">${m.blue_score}</span></div>`;
@@ -89,7 +90,13 @@
       const rows = [["Autonomous balls", "auto_balls"], ["Autonomous Jump Circle", "auto_circle"], ["Teleop balls", "teleop_balls"], ["Teleop Jump Circle", "teleop_circle"], pen];
       return `<div class="bd">${rows.map(([l, k]) => `<span class="r">${m.red_bd[k] ?? 0}</span><span class="l">${l}</span><span class="b">${m.blue_bd[k] ?? 0}</span>`).join("")}</div>`;
     })() : "";
-    const lab = `<div class="lab">${esc(m.label)}<small>${{ practice: "Practice", qual: "Qualification", elim: "Elimination" }[m.kind] || ""}</small></div>`;
+    // on a team's page, say whether that team won each match
+    let res = "";
+    if (mine && m.status === "final") {
+      const side = [m.red1, m.red2].includes(focus) ? "red" : "blue";
+      res = !m.winner || m.winner === "tie" ? '<span class="res t">Tie</span>' : m.winner === side ? '<span class="res w">Win</span>' : '<span class="res l">Loss</span>';
+    }
+    const lab = `<div class="lab">${esc(m.label)}<small>${{ practice: "Practice", qual: "Qualification", elim: "Elimination" }[m.kind] || ""}</small>${res}</div>`;
     return bd ? `<details class="m ${mine ? "mine" : ""}"><summary>${lab}${al("red")}${sc}${al("blue")}</summary>${bd}</details>`
       : `<div class="m ${mine ? "mine" : ""}"><div class="sum">${lab}${al("red")}${sc}${al("blue")}</div></div>`;
   }
@@ -97,9 +104,9 @@
   function rankingsTable(list, stage) {
     if (!list.length) return '<div class="empty">Rankings appear after the first match is played.</div>';
     return `<div class="tablebox"><table class="rk"><tr><th>Rank</th><th>Team</th><th title="Ranking score">RS</th><th>W-L-T</th><th class="hide-sm">Auto</th><th class="hide-sm">Circle</th><th class="hide-sm">Teleop</th></tr>
-      ${list.map((r) => `<tr class="${r.rank <= 3 ? "top3" : ""} ${r.team === myTeam ? "mine" : ""}"><td class="rank">${r.rank}</td><td><span class="t">${esc(r.team)}</span><span class="n">${esc(r.name)}</span></td>
+      ${list.map((r) => `<tr class="${r.rank <= 3 ? "top3" : ""} go" data-team="${esc(r.team)}" title="See ${esc(r.team)}'s matches"><td class="rank">${r.rank}</td><td><span class="t">${esc(r.team)}</span><span class="n">${esc(r.name)}</span></td>
         <td class="rs">${r.rs}</td><td>${r.wins}-${r.losses}-${r.ties}</td><td class="hide-sm">${r.auto}</td><td class="hide-sm">${r.circle}</td><td class="hide-sm">${r.teleop}</td></tr>`).join("")}
-      </table></div><p class="note">${stage === "practice" ? "Practice rankings (practice matches don't count toward the official rankings). " : ""}Ranked by Ranking Score (2 for a win, 1 for a tie), then autonomous points, Jump Circle points and teleop points.</p>`;
+      </table></div><p class="note">${stage === "practice" ? "Practice rankings (practice matches don't count toward the official rankings). " : ""}Ranked by Ranking Score (2 for a win, 1 for a tie), then autonomous points, Jump Circle points and teleop points. Tap a team to see its matches.</p>`;
   }
 
   function bracketHTML(b) {
@@ -146,10 +153,61 @@
     awards: ["Awards", () => ev.awards.length ? `<div class="aw">${ev.awards.map((a) => `<div class="brick studs"><span class="ic">${TROPHY}</span><h3>${esc(a.name)}</h3>${a.description ? `<p>${esc(a.description)}</p>` : ""}
         ${a.winners.map((w) => `<div class="w">${w.team ? `<b>${esc(w.team)}</b>${esc(w.name)}` : `<b>${esc(w.name)}</b>`}${w.school ? ` <span class="muted">· ${esc(w.school)}</span>` : ""}</div>`).join("")}</div>`).join("")}</div>`
       : '<div class="empty">Awards are posted here once they\'ve been presented.</div>'],
-    teams: ["Teams", () => `<div class="teams">${ev.teams.map((t) => `<button data-team="${esc(t.number)}"><b>${esc(t.number)}</b>${esc(t.name)}<small>${esc([t.school, t.city].filter(Boolean).join(", "))}</small></button>`).join("")}</div>`],
+    teams: ["Teams", () => team && teamOf(team).number ? teamPage(team) : teamList()],
   };
+
+  // rank row for a team: qualification rankings once they exist, practice before that
+  function rankOf(n) {
+    const q = (ev.rankings.qual || []).find((x) => x.team === n);
+    if (q) return { ...q, kind: "" };
+    const p = (ev.rankings.practice || []).find((x) => x.team === n);
+    return p ? { ...p, kind: "Practice " } : null;
+  }
+
+  function teamList() {
+    const rows = ev.teams.map((t) => {
+      const r = rankOf(t.number);
+      const line = r ? `${r.kind ? "Practice rank" : "Rank"} #${r.rank} · ${r.wins}-${r.losses}-${r.ties} (W-L-T)` : "No matches played yet";
+      const hay = `${t.number} ${t.name} ${t.school} ${t.city}`.toLowerCase();
+      return `<button data-team="${esc(t.number)}" data-hay="${esc(hay)}"><b>${esc(t.number)}</b>${esc(t.name)}<span class="tl-rec">${esc(line)}</span><small>${esc([t.school, t.city].filter(Boolean).join(", "))}</small></button>`;
+    }).join("");
+    return `<div class="find"><input id="find" type="search" placeholder="Find a team: number or name" autocomplete="off" aria-label="Find a team" value="${esc(teamQuery)}"></div>
+      <div class="teams" id="teamlist">${rows}</div><div class="empty hidden" id="nofind">No team matches that.</div><p class="note">Tap a team to see its record and matches.</p>`;
+  }
+  function filterTeams() {
+    const q = teamQuery.trim().toLowerCase();
+    let shown = 0;
+    $$("#teamlist button").forEach((b) => { const hit = !q || b.dataset.hay.includes(q); b.classList.toggle("hidden", !hit); shown += hit; });
+    const nf = $("#nofind"); if (nf) nf.classList.toggle("hidden", shown > 0);
+  }
+
+  function teamPage(n) {
+    const t = teamOf(n), r = rankOf(n);
+    const al = ev.alliances.find((a) => a.captain === n || a.partner === n);
+    const ms = ev.matches.filter((m) => [m.red1, m.red2, m.blue1, m.blue2].includes(n));
+    const played = ms.filter((m) => m.status !== "scheduled").slice().reverse();
+    const coming = ms.filter((m) => m.status === "scheduled");
+    const awards = ev.awards.filter((a) => a.winners.some((w) => w.team === n));
+    const stat = (v, l) => `<div><b>${v}</b><small>${l}</small></div>`;
+    focus = n;
+    const html = `<button class="btn ghost back" id="tp-back">← All teams</button>
+      <section class="brick studs cyan teamcard"><div class="num">${esc(t.number)}</div><h2>${esc(t.name)}</h2><div>${esc([t.school, t.city].filter(Boolean).join(", "))}</div>
+        <div class="stats">${r ? stat("#" + r.rank, r.kind + "Rank") + stat(`${r.wins}-${r.losses}-${r.ties}`, "W-L-T") + stat(r.rs, "Ranking score") : stat("–", "Not ranked yet")}
+          ${stat(played.length, "Matches played")}
+          ${r ? stat(r.auto, "Auto points") + stat(r.circle, "Jump Circle points") + stat(r.teleop, "Teleop points") : ""}
+          ${al ? stat("Alliance " + al.seed, al.captain === n ? "Captain" : "First pick") : ""}
+          ${coming[0] ? stat(esc(coming[0].label), "Next match" + (coming[0].scheduled ? " · " + fmtTime(coming[0].scheduled) : "")) : ""}</div>
+        ${awards.length ? `<p class="tc-aw">🏆 ${awards.map((a) => esc(a.name)).join(", ")}</p>` : ""}</section>
+      <h3 class="sub">Matches played</h3>
+      ${played.length ? `<div class="mlist">${played.map(matchCard).join("")}</div><p class="note">Tap a match for the score breakdown.</p>` : '<div class="empty">No matches played yet.</div>'}
+      ${coming.length ? `<h3 class="sub">Coming up</h3><div class="mlist">${coming.map(matchCard).join("")}</div>` : ""}`;
+    focus = "";
+    return html;
+  }
+  const streamTab = () => ev.stream_url && (ev.status === "live" || ev.status === "final");
   function available() {
-    return Object.keys(TABS).filter((k) => {
+    return [...(streamTab() ? ["stream"] : []), ...Object.keys(TABS)].filter((k) => {
+      if (k === "stream") return true;
       if (k === "results") return true;
       if (k === "schedule") return ev.matches.some((m) => m.status === "scheduled");
       if (k === "elims") return ev.alliances.length || ev.bracket;
@@ -158,53 +216,42 @@
       return ev.teams.length;
     });
   }
-  function drawTabs() {
+  function remember() {      // keep the open tab / team in the address, so refresh and shared links land in the same place
+    const p = new URLSearchParams(location.search);
+    p.set("tab", tab); team && tab === "teams" ? p.set("team", team) : p.delete("team");
+    try { history.replaceState(null, "", "?" + p.toString()); } catch (e) {}
+  }
+  function drawTabs(refresh) {
     const av = available();
     if (!tab || !av.includes(tab)) tab = ev.status === "final" && ev.awards.length ? "awards" : (ev.rankings.qual || []).length ? "rankings" : "results";
-    if (!av.includes(tab)) tab = av[0];
-    $("#tabs").innerHTML = av.map((k) => `<button role="tab" class="${k === tab ? "on" : ""}" data-tab="${k}">${TABS[k][0]}</button>`).join("");
-    $$("#tabs button").forEach((b) => (b.onclick = () => { tab = b.dataset.tab; drawTabs(); }));
+    if (!av.includes(tab)) tab = av.find((k) => k !== "stream") || av[0];
+    $("#tabs").innerHTML = av.map((k) => k === "stream"
+      ? `<button role="tab" class="${ev.status === "live" ? "live" : "replay"} ${k === tab ? "on" : ""}" data-tab="stream">${ev.status === "live" ? "Watch live" : "Watch the replay"}</button>`
+      : `<button role="tab" class="${k === tab ? "on" : ""}" data-tab="${k}">${TABS[k][0]}</button>`).join("");
+    $$("#tabs button").forEach((b) => (b.onclick = () => { tab = b.dataset.tab; if (tab === "teams") team = ""; drawTabs(); window.scrollTo({ top: Math.min(window.scrollY, $("#ev-head").offsetTop), behavior: "smooth" }); }));
+    $("#stream").classList.toggle("hidden", tab !== "stream");
+    $("#panel").classList.toggle("hidden", tab === "stream");
+    remember();
+    if (tab === "stream") return;
+    // the page refreshes itself during an event: don't wipe a search someone is typing
+    if (refresh && document.activeElement && document.activeElement.id === "find") return;
     $("#panel").innerHTML = TABS[tab][1]();
-    $$("#panel [data-team]").forEach((b) => (b.onclick = () => pickTeam(b.dataset.team)));
+    $$("#panel [data-team]").forEach((b) => (b.onclick = () => openTeam(b.dataset.team)));
+    const back = $("#tp-back"); if (back) back.onclick = () => openTeam("");
+    const find = $("#find");
+    if (find) {
+      filterTeams();
+      find.oninput = () => { teamQuery = find.value; filterTeams(); };
+      find.onkeydown = (e) => { if (e.key === "Enter") { const b = $("#teamlist button:not(.hidden)"); if (b) b.click(); } };
+    }
+  }
+  function openTeam(n) {
+    tab = "teams"; team = n;
+    drawTabs();
+    $("#tabs").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function teamCard() {
-    if (!myTeam || !teamOf(myTeam).number) { $("#teamcard").innerHTML = ""; return; }
-    const t = teamOf(myTeam);
-    const r = (ev.rankings.qual || []).find((x) => x.team === myTeam) || (ev.rankings.practice || []).find((x) => x.team === myTeam);
-    const al = ev.alliances.find((a) => a.captain === myTeam || a.partner === myTeam);
-    const ms = ev.matches.filter((m) => [m.red1, m.red2, m.blue1, m.blue2].includes(myTeam));
-    const next = ms.find((m) => m.status === "scheduled");
-    const awards = ev.awards.filter((a) => a.winners.some((w) => w.team === myTeam));
-    $("#teamcard").innerHTML = `<section class="brick studs cyan teamcard"><div class="tc-h"><div><div class="num">${esc(t.number)}</div><h2>${esc(t.name)}</h2><div>${esc([t.school, t.city].filter(Boolean).join(", "))}</div></div>
-        <button class="close" id="tc-close">Close</button></div>
-      <div class="stats">${r ? `<div><b>#${r.rank}</b><small>Rank</small></div><div><b>${r.wins}-${r.losses}-${r.ties}</b><small>Record</small></div><div><b>${r.rs}</b><small>Ranking score</small></div>` : ""}
-        ${al ? `<div><b>Alliance ${al.seed}</b><small>${al.captain === myTeam ? "Captain" : "First pick"}</small></div>` : ""}
-        ${next ? `<div><b>${esc(next.label)}</b><small>Next match${next.scheduled ? " · " + fmtTime(next.scheduled) : ""}</small></div>` : ""}</div>
-      ${awards.length ? `<p style="margin:12px 0 0;font-weight:800">🏆 ${awards.map((a) => esc(a.name)).join(", ")}</p>` : ""}</section>
-      ${ms.length ? `<div class="mlist">${ms.map(matchCard).join("")}</div>` : ""}`;
-    $("#tc-close").onclick = () => pickTeam("");
-  }
-  function pickTeam(n) {
-    myTeam = n;
-    try { n ? localStorage.setItem("lc_team", n) : localStorage.removeItem("lc_team"); } catch (e) {}
-    $("#find").value = n ? `${n} ${tname(n)}` : "";
-    $("#sugg").classList.add("hidden");
-    teamCard(); drawTabs();
-    if (n) $("#teamcard").scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-  function wireSearch() {
-    const inp = $("#find"), box = $("#sugg");
-    inp.oninput = () => {
-      const q = inp.value.trim().toLowerCase();
-      const hits = q ? ev.teams.filter((t) => t.number.toLowerCase().startsWith(q) || (t.name || "").toLowerCase().includes(q) || (t.school || "").toLowerCase().includes(q)).slice(0, 8) : [];
-      box.innerHTML = hits.map((t) => `<button data-t="${esc(t.number)}"><b>${esc(t.number)}</b>${esc(t.name)}</button>`).join("");
-      box.classList.toggle("hidden", !hits.length);
-      $$("[data-t]", box).forEach((b) => (b.onclick = () => pickTeam(b.dataset.t)));
-    };
-    inp.onkeydown = (e) => { if (e.key === "Enter") { const b = $("[data-t]", box); if (b) b.click(); } };
-  }
-
+  let refreshing = false;
   async function eventPage() {
     const slug = params.get("e");
     if (!slug) { location.href = "./"; return; }
@@ -214,9 +261,9 @@
     document.title = `${ev.name} · Results`;
     const [cls, txt] = STATUS[ev.status] || STATUS.upcoming;
     $("#ev-head").innerHTML = `<h1>${esc(ev.name)}</h1>
-      <div class="ev-meta"><span class="chip ${cls}">${txt}</span><span>${esc(fmtDate(ev.date))}</span><span>${ev.counts.teams} teams</span><span>${ev.counts.played} matches played</span></div>
-      <div class="ev-actions">${ev.stream_url && ev.status === "live" ? `<a class="btn live" href="#stream">Watch live</a>` : ""}</div>`;
+      <div class="ev-meta"><span class="chip ${cls}">${txt}</span><span>${esc(fmtDate(ev.date))}</span><span>${ev.counts.teams} teams</span><span>${ev.counts.played} matches played</span></div>`;
     $("#nav-live").classList.toggle("hidden", !(ev.stream_url && ev.status === "live"));
+    $("#nav-live").onclick = (e) => { e.preventDefault(); tab = "stream"; drawTabs(); $("#tabs").scrollIntoView({ behavior: "smooth", block: "start" }); };
     if (!$("#stream").dataset.url || $("#stream").dataset.url !== ev.stream_url) {      // don't reload a playing video on refresh
       $("#stream").dataset.url = ev.stream_url || "";
       $("#stream").innerHTML = streamBlock(ev.stream_url, ev.status === "live", ev.status === "final");
@@ -226,10 +273,11 @@
       <div class="vs"><span class="r">${esc(f.red.filter(Boolean).join(" & "))}</span>vs<span class="b">${esc(f.blue.filter(Boolean).join(" & "))}</span></div></div>` : "";
     $("#champion").innerHTML = ev.champion ? `<div class="brick studs cyan champion"><h2>🏆 Tournament Champions</h2><p>Alliance ${ev.champion.seed}: ${esc((ev.champion.teams || []).filter(Boolean).map((t) => `${t} ${tname(t)}`).join(" & "))}</p></div>` : "";
     $("#updated").textContent = `Updated ${fmtTime(ev.updated)}${ev.status === "live" ? ". This page refreshes by itself." : "."}`;
-    teamCard(); drawTabs();
+    drawTabs(refreshing);
+    refreshing = true;
     if (ev.status === "live") setTimeout(eventPage, 30000);
   }
 
   if (document.body.dataset.page === "home") home();
-  else { eventPage().then(() => { if (ev) wireSearch(); }); }
+  else eventPage();
 })();
