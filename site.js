@@ -61,7 +61,7 @@
       const [cls, txt] = STATUS[e.status] || STATUS.upcoming;
       return `<a class="brick studs ecard" href="event.html?e=${encodeURIComponent(e.slug)}">
         <div class="d"><span>${esc(fmtDate(e.date))}</span><span class="chip ${cls}">${txt}</span></div>
-        <h3>${esc(e.name)}</h3>
+        <h3>${esc(e.name)}</h3>${e.division ? `<div class="divn">${esc(e.division)} division</div>` : ""}
         ${e.champion ? `<div class="champ">🏆 Champions: ${esc((e.champion.teams || []).filter(Boolean).join(" & "))}</div>` : ""}
         ${e.top && e.top.length ? `<ol>${e.top.map((t) => `<li>${esc(t.team)} <span>${esc(t.name)}</span></li>`).join("")}</ol>` : `<div class="muted">${e.teams} teams</div>`}
         <div class="go">See results →</div></a>`;
@@ -96,9 +96,27 @@
       const side = [m.red1, m.red2].includes(focus) ? "red" : "blue";
       res = !m.winner || m.winner === "tie" ? '<span class="res t">Tie</span>' : m.winner === side ? '<span class="res w">Win</span>' : '<span class="res l">Loss</span>';
     }
-    const lab = `<div class="lab">${esc(m.label)}<small>${{ practice: "Practice", qual: "Qualification", elim: "Elimination" }[m.kind] || ""}</small>${res}</div>`;
+    const lab = `<div class="lab">${esc(m.label)}<small>${{ practice: "Practice", qual: "Qualification", elim: "Elimination" }[m.kind] || ""}</small>${m.field ? `<small class="fld">${esc(m.field)}</small>` : ""}${res}</div>`;
     return bd ? `<details class="m ${mine ? "mine" : ""}"><summary>${lab}${al("red")}${sc}${al("blue")}</summary>${bd}</details>`
       : `<div class="m ${mine ? "mine" : ""}"><div class="sum">${lab}${al("red")}${sc}${al("blue")}</div></div>`;
+  }
+
+  // lunch and other breaks between the matches they fall between
+  function withBreaks(list) {
+    const bl = (ev.breaks || []).slice();
+    let prev = null;
+    return list.map((m) => {
+      let pre = "";
+      if (m.scheduled && m.kind !== "elim") {
+        const at = m.scheduled.slice(0, 16);
+        while (bl.length && bl[0].at <= at) {
+          const b = bl.shift();
+          if (!prev || prev < b.at) pre += `<div class="brk">☕ ${esc(b.label)} · ${fmtTime(b.at)}–${fmtTime(new Date(new Date(b.at).getTime() + b.minutes * 60000).toISOString())}</div>`;
+        }
+        prev = at;
+      }
+      return pre + matchCard(m);
+    }).join("");
   }
 
   function rankingsTable(list, stage) {
@@ -142,8 +160,11 @@
     }],
     schedule: ["Schedule", () => {
       const up = ev.matches.filter((m) => m.status === "scheduled");
-      return up.length ? `<div class="mlist">${up.map(matchCard).join("")}</div>` : '<div class="empty">Every scheduled match has been played.</div>';
+      return up.length ? `<div class="mlist">${withBreaks(up)}</div>` : '<div class="empty">Every scheduled match has been played.</div>';
     }],
+    skills: ["Skills", () => `<div class="tablebox"><table class="rk"><tr><th>Rank</th><th>Team</th><th>Skills score</th><th>Best auto</th><th>Best driver</th></tr>
+      ${ev.skills.map((r) => `<tr class="${r.rank <= 3 ? "top3" : ""} go" data-team="${esc(r.team)}"><td class="rank">${r.rank}</td><td><span class="t">${esc(r.team)}</span><span class="n">${esc(r.name)}</span></td><td class="rs">${r.total}</td><td>${r.auto}</td><td>${r.driver}</td></tr>`).join("")}
+      </table></div><p class="note">Skills challenge: a team runs alone on the field. Skills score = best autonomous run + best driver run.</p>`],
     elims: ["Eliminations", () => {
       let h = "";
       if (ev.alliances.length) h += `<div class="alls">${ev.alliances.map((a) => `<div><b>Alliance ${a.seed}</b>${esc(a.captain)} ${esc(tname(a.captain))}<br>${a.partner ? `${esc(a.partner)} ${esc(tname(a.partner))}` : ""}</div>`).join("")}</div>`;
@@ -196,6 +217,7 @@
           ${stat(played.length, "Matches played")}
           ${r ? stat(r.auto, "Auto points") + stat(r.circle, "Jump Circle points") + stat(r.teleop, "Teleop points") : ""}
           ${al ? stat("Alliance " + al.seed, al.captain === n ? "Captain" : "First pick") : ""}
+          ${(() => { const sk = (ev.skills || []).find((x) => x.team === n); return sk ? stat(`#${sk.rank} · ${sk.total}`, "Skills") : ""; })()}
           ${coming[0] ? stat(esc(coming[0].label), "Next match" + (coming[0].scheduled ? " · " + fmtTime(coming[0].scheduled) : "")) : ""}</div>
         ${awards.length ? `<p class="tc-aw">🏆 ${awards.map((a) => esc(a.name)).join(", ")}</p>` : ""}</section>
       <h3 class="sub">Matches played</h3>
@@ -211,6 +233,7 @@
       if (k === "results") return true;
       if (k === "schedule") return ev.matches.some((m) => m.status === "scheduled");
       if (k === "elims") return ev.alliances.length || ev.bracket;
+      if (k === "skills") return (ev.skills || []).length;
       if (k === "awards") return ev.awards.length;
       if (k === "rankings") return (ev.rankings.qual || []).length || (ev.rankings.practice || []).length;
       return ev.teams.length;
@@ -260,7 +283,7 @@
     try { const idx = await get("data/index.json"); if (idx.site && idx.site.title) $("#site-title").textContent = idx.site.title; } catch (e) {}
     document.title = `${ev.name} · Results`;
     const [cls, txt] = STATUS[ev.status] || STATUS.upcoming;
-    $("#ev-head").innerHTML = `<h1>${esc(ev.name)}</h1>
+    $("#ev-head").innerHTML = `<h1>${esc(ev.name)}${ev.division ? ` <span class="divn">${esc(ev.division)} division</span>` : ""}</h1>
       <div class="ev-meta"><span class="chip ${cls}">${txt}</span><span>${esc(fmtDate(ev.date))}</span><span>${ev.counts.teams} teams</span><span>${ev.counts.played} matches played</span></div>`;
     $("#nav-live").classList.toggle("hidden", !(ev.stream_url && ev.status === "live"));
     $("#nav-live").onclick = (e) => { e.preventDefault(); tab = "stream"; drawTabs(); $("#tabs").scrollIntoView({ behavior: "smooth", block: "start" }); };
